@@ -1,0 +1,482 @@
+import javax.swing.*;
+import javax.swing.border.EmptyBorder;
+import java.awt.*;
+import java.awt.event.*;
+import java.text.DecimalFormat;
+import java.util.*;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+
+/**
+ * SkyPathApp.java
+ *
+ * Single-file Java Swing application implementing:
+ * - Home screen
+ * - Signup & Login
+ * - Delivery screen (enter address, select product, quantity)
+ * - Shortest path calculation (simulated/deterministic)
+ * - Delivery completed message + delivered list
+ *
+ * Compile: javac SkyPathApp.java
+ * Run:     java SkyPathApp
+ *
+ * Author: ChatGPT (GPT-5 Thinking mini)
+ */
+public class SkyPathApp {
+
+    public static void main(String[] args) {
+        // Run GUI on Event Dispatch Thread
+        SwingUtilities.invokeLater(() -> {
+            System.out.println(timestamp() + " App started.");
+            new HomeScreen();
+        });
+    }
+
+    // Simple timestamp helper
+    private static String timestamp() {
+        return "[" + LocalDateTime.now().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss")) + "]";
+    }
+
+    // ---------------------------
+    // User database (in-memory)
+    // ---------------------------
+    static class UserDatabase {
+        private static final HashMap<String, String> users = new HashMap<>();
+
+        // Add a default test user for convenience
+        static {
+            users.put("test", "test123");
+        }
+
+        public static synchronized boolean signup(String username, String password) {
+            if (username == null || password == null || username.trim().isEmpty()) return false;
+            if (users.containsKey(username)) return false;
+            users.put(username, password);
+            System.out.println(timestamp() + " Signup success for user: " + username);
+            return true;
+        }
+
+        public static synchronized boolean login(String username, String password) {
+            boolean ok = users.containsKey(username) && users.get(username).equals(password);
+            System.out.println(timestamp() + " Login attempt for user: " + username + " -> " + (ok ? "SUCCESS" : "FAIL"));
+            return ok;
+        }
+    }
+
+    // ---------------------------
+    // Product model
+    // ---------------------------
+    static class Product {
+        String id;
+        String name;
+        double weightKg;
+        double basePrice;
+
+        Product(String id, String name, double weightKg, double basePrice) {
+            this.id = id;
+            this.name = name;
+            this.weightKg = weightKg;
+            this.basePrice = basePrice;
+        }
+
+        @Override
+        public String toString() {
+            return name + " (" + weightKg + "kg)";
+        }
+    }
+
+    // ---------------------------
+    // Delivery order model
+    // ---------------------------
+    static class DeliveryOrder {
+        String username;
+        Product product;
+        int qty;
+        String address;
+        double distanceKm;
+        double cost;
+        LocalDateTime time;
+
+        DeliveryOrder(String username, Product product, int qty, String address, double distanceKm, double cost) {
+            this.username = username;
+            this.product = product;
+            this.qty = qty;
+            this.address = address;
+            this.distanceKm = distanceKm;
+            this.cost = cost;
+            this.time = LocalDateTime.now();
+        }
+
+        @Override
+        public String toString() {
+            DateTimeFormatter fmt = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+            return String.format("%s | user:%s | %dx %s | to:%s | dist:%.2f km | cost:₹%.2f",
+                    time.format(fmt), username, qty, product.name, address, distanceKm, cost);
+        }
+    }
+
+    // ---------------------------
+    // ShortestPath (simulated)
+    // ---------------------------
+    static class ShortestPath {
+        // Warehouse coords (fixed)
+        static final double WAREHOUSE_X = 0.0;
+        static final double WAREHOUSE_Y = 0.0;
+
+        // Deterministic conversion of address -> pseudo coordinates
+        // so same address always gives same distance
+        public static double computeDistanceKm(String address) {
+            if (address == null) return 0.0;
+            int code = Math.abs(address.hashCode());
+            // map into 0..100 range
+            double x = (code % 101) / 10.0;         // 0.0 .. 10.0
+            double y = ((code / 101) % 101) / 10.0; // 0.0 .. 10.0
+            double dx = x - WAREHOUSE_X;
+            double dy = y - WAREHOUSE_Y;
+            double kms = Math.sqrt(dx * dx + dy * dy);
+            // add small deterministic modifier so not all small numbers
+            return round2(kms);
+        }
+
+        private static double round2(double v) {
+            return Math.round(v * 100.0) / 100.0;
+        }
+    }
+
+    // ---------------------------
+    // HomeScreen (landing)
+    // ---------------------------
+    static class HomeScreen extends JFrame {
+        private String loggedInUser = null;
+
+        HomeScreen() {
+            setTitle("SkyPath - Smart Drone Delivery System");
+            setSize(800, 480);
+            setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+            setLocationRelativeTo(null);
+            setLayout(new BorderLayout());
+
+            // Top bar (login / signup)
+            JPanel topBar = new JPanel(null);
+            topBar.setPreferredSize(new Dimension(800, 60));
+            topBar.setBackground(new Color(22, 120, 255));
+
+            JLabel brand = new JLabel("SkyPath");
+            brand.setForeground(Color.WHITE);
+            brand.setFont(new Font("SansSerif", Font.BOLD, 32));
+            brand.setBounds(20, 8, 200, 44);
+            topBar.add(brand);
+
+            JButton loginBtn = new JButton("Login");
+            loginBtn.setBounds(620, 12, 80, 36);
+            topBar.add(loginBtn);
+
+            JButton signupBtn = new JButton("Sign Up");
+            signupBtn.setBounds(710, 12, 80, 36);
+            topBar.add(signupBtn);
+
+            add(topBar, BorderLayout.NORTH);
+
+            // Center panel: big SkyPath card
+            JPanel center = new JPanel(null);
+            center.setBackground(Color.WHITE);
+
+            JPanel card = new JPanel();
+            card.setBackground(new Color(77, 155, 255));
+            card.setBounds(70, 30, 620, 340);
+            card.setLayout(null);
+            card.setBorder(BorderFactory.createLineBorder(new Color(70, 140, 240), 2));
+
+            JLabel title = new JLabel("SkyPath");
+            title.setBounds(30, 20, 300, 60);
+            title.setFont(new Font("SansSerif", Font.BOLD, 44));
+            title.setForeground(Color.WHITE);
+            card.add(title);
+
+            JLabel subtitle = new JLabel("Smart Drone Delivery System");
+            subtitle.setBounds(30, 80, 400, 28);
+            subtitle.setFont(new Font("SansSerif", Font.PLAIN, 18));
+            subtitle.setForeground(Color.WHITE);
+            card.add(subtitle);
+
+            JButton startBtn = new JButton("Start Delivery");
+            startBtn.setBounds(30, 140, 220, 50);
+            startBtn.setFont(new Font("SansSerif", Font.BOLD, 16));
+            card.add(startBtn);
+
+            // delivered summary area inside home:
+            JTextArea deliveredSummary = new JTextArea();
+            deliveredSummary.setEditable(false);
+            deliveredSummary.setText("Delivered items will appear here...\n");
+            deliveredSummary.setBorder(BorderFactory.createEmptyBorder(8,8,8,8));
+            JScrollPane sc = new JScrollPane(deliveredSummary);
+            sc.setBounds(320, 140, 280, 140);
+            card.add(sc);
+
+            center.add(card);
+            add(center, BorderLayout.CENTER);
+
+            // Footer
+            JLabel footer = new JLabel("© 2024 SkyPath", SwingConstants.CENTER);
+            footer.setBorder(new EmptyBorder(8, 8, 8, 8));
+            add(footer, BorderLayout.SOUTH);
+
+            setVisible(true);
+
+            // Action: signup -> open SignupForm
+            signupBtn.addActionListener(e -> {
+                SignupForm sf = new SignupForm(this);
+                sf.setVisible(true);
+            });
+
+            // Action: login -> open LoginForm
+            loginBtn.addActionListener(e -> {
+                LoginForm lf = new LoginForm(this);
+                lf.setVisible(true);
+            });
+
+            // startBtn -> If logged in go to DeliveryScreen otherwise prompt
+            startBtn.addActionListener(e -> {
+                if (loggedInUser == null) {
+                    JOptionPane.showMessageDialog(this, "Please login first to start delivery.", "Not logged in", JOptionPane.INFORMATION_MESSAGE);
+                } else {
+                    System.out.println(timestamp() + " User '" + loggedInUser + "' clicked Start Delivery.");
+                    DeliveryScreen ds = new DeliveryScreen(loggedInUser, deliveredSummary);
+                    ds.setVisible(true);
+                }
+            });
+
+            // allow LoginForm / SignupForm to set user via callbacks
+            // Provide small helper methods:
+            this.setLoginCallback((username) -> {
+                loggedInUser = username;
+                System.out.println(timestamp() + " HomeScreen: user set to " + username);
+                JOptionPane.showMessageDialog(this, "Welcome, " + username + "!", "Login Success", JOptionPane.INFORMATION_MESSAGE);
+            });
+        }
+
+        // Simple callback support (single consumer)
+        private ConsumerString loginCallback = null;
+        public void setLoginCallback(ConsumerString cb) {
+            this.loginCallback = cb;
+        }
+        public void notifyLogin(String username) {
+            if (loginCallback != null) loginCallback.accept(username);
+        }
+    }
+
+    // small functional interface for callback
+    interface ConsumerString { void accept(String s); }
+
+    // ---------------------------
+    // Signup form
+    // ---------------------------
+    static class SignupForm extends JDialog {
+        SignupForm(JFrame parent) {
+            super(parent, "Sign Up", true);
+            setSize(360, 260);
+            setLocationRelativeTo(parent);
+            setLayout(null);
+
+            JLabel userL = new JLabel("Username:");
+            userL.setBounds(20, 30, 100, 25);
+            add(userL);
+
+            JTextField userF = new JTextField();
+            userF.setBounds(120, 30, 200, 25);
+            add(userF);
+
+            JLabel passL = new JLabel("Password:");
+            passL.setBounds(20, 75, 100, 25);
+            add(passL);
+
+            JPasswordField passF = new JPasswordField();
+            passF.setBounds(120, 75, 200, 25);
+            add(passF);
+
+            JButton createBtn = new JButton("Create Account");
+            createBtn.setBounds(100, 130, 150, 36);
+            add(createBtn);
+
+            createBtn.addActionListener(e -> {
+                String u = userF.getText().trim();
+                String p = new String(passF.getPassword());
+                if (u.isEmpty() || p.isEmpty()) {
+                    JOptionPane.showMessageDialog(this, "Username and password cannot be empty.", "Input error", JOptionPane.ERROR_MESSAGE);
+                    return;
+                }
+                boolean ok = UserDatabase.signup(u, p);
+                if (!ok) {
+                    JOptionPane.showMessageDialog(this, "Username already exists or invalid.", "Signup failed", JOptionPane.ERROR_MESSAGE);
+                } else {
+                    JOptionPane.showMessageDialog(this, "Account created. Please login.", "Success", JOptionPane.INFORMATION_MESSAGE);
+                    dispose();
+                }
+            });
+        }
+    }
+
+    // ---------------------------
+    // Login form
+    // ---------------------------
+    static class LoginForm extends JDialog {
+        LoginForm(HomeScreen parent) {
+            super(parent, "Login", true);
+            setSize(360, 260);
+            setLocationRelativeTo(parent);
+            setLayout(null);
+
+            JLabel userL = new JLabel("Username:");
+            userL.setBounds(20, 30, 100, 25);
+            add(userL);
+
+            JTextField userF = new JTextField();
+            userF.setBounds(120, 30, 200, 25);
+            add(userF);
+
+            JLabel passL = new JLabel("Password:");
+            passL.setBounds(20, 75, 100, 25);
+            add(passL);
+
+            JPasswordField passF = new JPasswordField();
+            passF.setBounds(120, 75, 200, 25);
+            add(passF);
+
+            JButton loginBtn = new JButton("Login");
+            loginBtn.setBounds(120, 130, 100, 36);
+            add(loginBtn);
+
+            loginBtn.addActionListener(e -> {
+                String u = userF.getText().trim();
+                String p = new String(passF.getPassword());
+                if (UserDatabase.login(u, p)) {
+                    // pass login to HomeScreen
+                    parent.notifyLogin(u);
+                    dispose();
+                } else {
+                    JOptionPane.showMessageDialog(this, "Invalid credentials.", "Login failed", JOptionPane.ERROR_MESSAGE);
+                }
+            });
+        }
+    }
+
+    // ---------------------------
+    // DeliveryScreen
+    // ---------------------------
+    static class DeliveryScreen extends JFrame {
+        private final java.util.List<Product> productCatalog = new ArrayList<>();
+        private final java.util.List<DeliveryOrder> delivered = new ArrayList<>();
+        private final String username;
+        private final JTextArea summaryArea; // ref to HomeScreen's deliveredSummary
+
+        DeliveryScreen(String username, JTextArea summaryArea) {
+            this.username = username;
+            this.summaryArea = summaryArea;
+
+            // sample product catalog (you can extend)
+            productCatalog.add(new Product("P001", "Smartphone", 0.25, 15000));
+            productCatalog.add(new Product("P002", "Shoes", 0.8, 2500));
+            productCatalog.add(new Product("P003", "Groceries Box", 3.5, 1200));
+            productCatalog.add(new Product("P004", "Headphones", 0.2, 3500));
+            productCatalog.add(new Product("P005", "Book Set", 1.2, 800));
+
+            setTitle("Start Delivery - " + username);
+            setSize(520, 420);
+            setLocationRelativeTo(null);
+            setLayout(null);
+            setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
+
+            JLabel heading = new JLabel("Start Delivery", SwingConstants.CENTER);
+            heading.setFont(new Font("SansSerif", Font.BOLD, 20));
+            heading.setBounds(10, 10, 480, 30);
+            add(heading);
+
+            // Address entry
+            JLabel addrL = new JLabel("Delivery Address:");
+            addrL.setBounds(20, 60, 140, 25);
+            add(addrL);
+
+            JTextField addrF = new JTextField();
+            addrF.setBounds(160, 60, 330, 25);
+            add(addrF);
+
+            // Product selection
+            JLabel prodL = new JLabel("Select Product:");
+            prodL.setBounds(20, 100, 120, 25);
+            add(prodL);
+
+            JComboBox<Product> prodCombo = new JComboBox<>(productCatalog.toArray(new Product[0]));
+            prodCombo.setBounds(160, 100, 220, 25);
+            add(prodCombo);
+
+            // Quantity
+            JLabel qtyL = new JLabel("Quantity:");
+            qtyL.setBounds(20, 140, 120, 25);
+            add(qtyL);
+
+            JSpinner qtySpinner = new JSpinner(new SpinnerNumberModel(1, 1, 100, 1));
+            qtySpinner.setBounds(160, 140, 80, 25);
+            add(qtySpinner);
+
+            // Buttons
+            JButton calcBtn = new JButton("Calculate & Deliver");
+            calcBtn.setBounds(160, 180, 200, 36);
+            add(calcBtn);
+
+            // Delivered log area in this window
+            JTextArea logArea = new JTextArea();
+            logArea.setEditable(false);
+            JScrollPane logScroll = new JScrollPane(logArea);
+            logScroll.setBounds(20, 230, 470, 140);
+            add(logScroll);
+
+            // Action: calculate and deliver
+            calcBtn.addActionListener(e -> {
+                String address = addrF.getText().trim();
+                if (address.isEmpty()) {
+                    JOptionPane.showMessageDialog(this, "Please enter a delivery address.", "Input required", JOptionPane.WARNING_MESSAGE);
+                    return;
+                }
+                Product selected = (Product) prodCombo.getSelectedItem();
+                int qty = (Integer) qtySpinner.getValue();
+
+                // compute distance
+                double distanceKm = ShortestPath.computeDistanceKm(address);
+                // compute cost (example: basePrice * qty + distance * rate)
+                double ratePerKm = 15.0; // rupees per km hypothetical
+                double cost = selected.basePrice * qty + (distanceKm * ratePerKm);
+
+                // create order and mark delivered
+                DeliveryOrder order = new DeliveryOrder(username, selected, qty, address, distanceKm, cost);
+                delivered.add(order);
+                deliveredToGlobal(order);
+
+                // show result to user (GUI)
+                DecimalFormat df = new DecimalFormat("#0.00");
+                String message = "Delivery Completed!\n\nProduct: " + selected.name +
+                        "\nQty: " + qty +
+                        "\nAddress: " + address +
+                        "\nShortest Distance (simulated): " + df.format(distanceKm) + " km" +
+                        "\nDelivery Cost (simulated): ₹" + df.format(cost);
+                JOptionPane.showMessageDialog(this, message, "Delivered", JOptionPane.INFORMATION_MESSAGE);
+
+                // Console (CRT) output
+                System.out.println(timestamp() + " Delivered: " + order.toString());
+
+                // update log areas
+                logArea.append(order.toString() + "\n");
+                summaryArea.append(order.toString() + "\n");
+
+                // reset address for next
+                addrF.setText("");
+            });
+
+            setVisible(true);
+        }
+
+        // Optionally you could persist; here we simply print
+        private void deliveredToGlobal(DeliveryOrder order) {
+            // This function can be extended to save to file/db
+        }
+    }
+}
