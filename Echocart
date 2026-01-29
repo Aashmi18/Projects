@@ -1,0 +1,116 @@
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.*;
+import java.util.*;
+
+public class EchoCartRackBased extends JFrame implements ActionListener {
+
+    private JTextArea outputArea;
+    private JButton nextRackButton;
+
+    private java.util.List<Product> products;
+    private int currentIndex = 0;
+
+    public EchoCartRackBased() {
+
+        setTitle("EchoCart Rack Navigation System");
+        setSize(520, 380);
+        setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        setLayout(new BorderLayout());
+
+        outputArea = new JTextArea();
+        outputArea.setEditable(false);
+        outputArea.setFont(new Font("Monospaced", Font.PLAIN, 14));
+        add(new JScrollPane(outputArea), BorderLayout.CENTER);
+
+        nextRackButton = new JButton("Move to Next Rack");
+        add(nextRackButton, BorderLayout.SOUTH);
+
+        nextRackButton.addActionListener(this);
+
+        loadProducts();
+        showCurrentProduct(); // show first rack initially
+
+        setVisible(true);
+    }
+
+    // Product data
+    private void loadProducts() {
+        products = new ArrayList<>();
+
+        products.add(new Product("Aashri Wheat Flour 1kg", 65,
+                "2026-03-10", 8, 2));
+        products.add(new Product("Nature Milk 1L", 45.5,
+                "2025-12-18", 3, 1));
+        products.add(new Product("Sunrise Olive Oil 500ml", 320,
+                "2027-01-30", 5, 4));
+        products.add(new Product("Daily Soap 75g", 25,
+                "2026-06-12", 2, 3));
+    }
+
+    // Button click → move to next rack
+    @Override
+    public void actionPerformed(ActionEvent e) {
+        currentIndex++;
+
+        if (currentIndex < products.size()) {
+            showCurrentProduct();
+        } else {
+            outputArea.setText(
+                "[EchoCart Announcement]\n\n" +
+                "You have reached the end of this aisle.\n"
+            );
+            nextRackButton.setEnabled(false);
+        }
+    }
+
+    // Show announcement for current rack
+    private void showCurrentProduct() {
+
+        Product p = products.get(currentIndex);
+        outputArea.setText("");
+
+        outputArea.append("[EchoCart Announcement]\n\n");
+        outputArea.append("You are at Rack " + p.rack +
+                          ", Row " + p.row + ".\n");
+        outputArea.append("The item is " + p.name + ".\n");
+        outputArea.append("Price is " + p.price + " rupees.\n");
+        outputArea.append("Expiry date is " +
+                          formatDate(p.expiryDate) + ".\n");
+
+        if (isNearExpiry(p.expiryDate)) {
+            outputArea.append(
+                "Note: This product is nearing its expiry date.\n");
+        }
+    }
+
+    private boolean isNearExpiry(String expiryDate) {
+        int expYear = Integer.parseInt(expiryDate.substring(0, 4));
+        int currentYear = Calendar.getInstance().get(Calendar.YEAR);
+        return expYear <= currentYear + 1;
+    }
+
+    private String formatDate(String date) {
+        return date.replace("-", " ");
+    }
+
+    public static void main(String[] args) {
+        new EchoCartRackBased();
+    }
+
+    // Product class
+    static class Product {
+        String name, expiryDate;
+        double price;
+        int rack, row;
+
+        Product(String name, double price,
+                String expiryDate, int rack, int row) {
+            this.name = name;
+            this.price = price;
+            this.expiryDate = expiryDate;
+            this.rack = rack;
+            this.row = row;
+        }
+    }
+}
