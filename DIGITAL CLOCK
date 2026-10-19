@@ -1,0 +1,143 @@
+import javax.swing.*;
+import java.awt.*;
+import java.awt.event.*;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
+import java.util.Timer;
+import java.util.TimerTask;
+
+public class DigitalClock extends JFrame {
+    JLabel timeLabel, dateLabel, timerLabel;
+    JComboBox<String> themeBox;
+    JTextField alarmField;
+    JButton setAlarmBtn, stopAlarmBtn, startTimerBtn;
+
+    String alarmTime = "";
+    boolean alarmSet = false;
+    Timer countdownTimer;
+
+    public DigitalClock() {
+        setTitle("Digital Clock Project");
+        setSize(400, 350);
+        setLayout(new GridLayout(7, 1));
+
+        // Real-Time Clock Module
+        timeLabel = new JLabel("Time: --:--:--", SwingConstants.CENTER);
+        timeLabel.setFont(new Font("Arial", Font.BOLD, 24));
+        add(timeLabel);
+
+        // Date & Calendar Module
+        dateLabel = new JLabel("Date: --", SwingConstants.CENTER);
+        dateLabel.setFont(new Font("Arial", Font.BOLD, 18));
+        add(dateLabel);
+
+        // Alarm Module
+        JPanel alarmPanel = new JPanel();
+        alarmPanel.add(new JLabel("Set Alarm (HH:MM):"));
+        alarmField = new JTextField(5);
+        alarmPanel.add(alarmField);
+        setAlarmBtn = new JButton("Set");
+        stopAlarmBtn = new JButton("Stop");
+        alarmPanel.add(setAlarmBtn);
+        alarmPanel.add(stopAlarmBtn);
+        add(alarmPanel);
+
+        // Timer Module
+        timerLabel = new JLabel("Timer: --", SwingConstants.CENTER);
+        timerLabel.setFont(new Font("Arial", Font.BOLD, 18));
+        add(timerLabel);
+        startTimerBtn = new JButton("Start Timer (10 sec)");
+        add(startTimerBtn);
+
+        // Theme Module
+        themeBox = new JComboBox<>(new String[]{"Light", "Dark", "Blue"});
+        add(themeBox);
+
+        // Power Module (Exit)
+        JButton powerBtn = new JButton("Power Off");
+        add(powerBtn);
+
+        // Real-time Thread
+        new Timer().scheduleAtFixedRate(new TimerTask() {
+            public void run() {
+                updateClock();
+                checkAlarm();
+            }
+        }, 0, 1000);
+
+        // Alarm Handlers
+        setAlarmBtn.addActionListener(e -> setAlarm());
+        stopAlarmBtn.addActionListener(e -> stopAlarm());
+
+        // Timer Handler
+        startTimerBtn.addActionListener(e -> startTimer());
+
+        // Theme Handler
+        themeBox.addActionListener(e -> changeTheme());
+
+        // Power Button
+        powerBtn.addActionListener(e -> System.exit(0));
+
+        setVisible(true);
+        setDefaultCloseOperation(EXIT_ON_CLOSE);
+    }
+
+    // Real-Time Clock Module
+    void updateClock() {
+        LocalTime now = LocalTime.now();
+        timeLabel.setText("Time: " + now.format(DateTimeFormatter.ofPattern("HH:mm:ss")));
+
+        LocalDate date = LocalDate.now();
+        dateLabel.setText("Date: " + date.format(DateTimeFormatter.ofPattern("dd-MM-yyyy")));
+    }
+
+    // Alarm Module
+    void setAlarm() {
+        alarmTime = alarmField.getText();
+        alarmSet = true;
+        JOptionPane.showMessageDialog(this, "Alarm set for " + alarmTime);
+    }
+
+    void stopAlarm() {
+        alarmSet = false;
+    }
+
+    void checkAlarm() {
+        if (alarmSet) {
+            String current = LocalTime.now().format(DateTimeFormatter.ofPattern("HH:mm"));
+            if (current.equals(alarmTime)) {
+                JOptionPane.showMessageDialog(this, "⏰ Alarm Ringing!");
+                alarmSet = false;
+            }
+        }
+    }
+
+    // Timer Module
+    void startTimer() {
+        timerLabel.setText("Timer: 10 seconds");
+        countdownTimer = new Timer();
+        countdownTimer.scheduleAtFixedRate(new TimerTask() {
+            int t = 10;
+            public void run() {
+                timerLabel.setText("Timer: " + t + " seconds");
+                t--;
+                if (t < 0) {
+                    countdownTimer.cancel();
+                    timerLabel.setText("Timer Finished!");
+                }
+            }
+        }, 0, 1000);
+    }
+
+    // Theme Module
+    void changeTheme() {
+        String theme = (String) themeBox.getSelectedItem();
+        if (theme.equals("Light")) getContentPane().setBackground(Color.WHITE);
+        if (theme.equals("Dark")) getContentPane().setBackground(Color.GRAY);
+        if (theme.equals("Blue")) getContentPane().setBackground(Color.CYAN);
+    }
+
+    public static void main(String[] args) {
+        new DigitalClock();
+    }
+}
