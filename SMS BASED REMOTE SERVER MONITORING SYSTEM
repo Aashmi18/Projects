@@ -1,0 +1,78 @@
+-- =====================================
+-- 1. CREATE TABLES
+-- =====================================
+
+CREATE TABLE IF NOT EXISTS server_status (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cpu INTEGER,
+    memory INTEGER,
+    disk INTEGER,
+    time TEXT
+);
+
+CREATE TABLE IF NOT EXISTS alerts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    message TEXT,
+    time TEXT
+);
+
+-- =====================================
+-- 2. INSERT SAMPLE DATA
+-- =====================================
+
+INSERT INTO server_status (cpu, memory, disk, time)
+VALUES (50, 60, 70, '2026-04-12 10:00:00');
+
+INSERT INTO server_status (cpu, memory, disk, time)
+VALUES (88, 92, 65, '2026-04-12 10:05:00');
+
+-- Insert Alert (Critical case)
+INSERT INTO alerts (message, time)
+VALUES ('ALERT! CPU:88% MEMORY:92%', '2026-04-12 10:05:00');
+
+-- =====================================
+-- 3. SELECT QUERIES (OUTPUT)
+-- =====================================
+
+-- View all server data
+SELECT * FROM server_status;
+
+-- View all alerts
+SELECT * FROM alerts;
+
+-- =====================================
+-- 4. CONDITION CHECK (IMPORTANT)
+-- =====================================
+
+SELECT * FROM server_status
+WHERE cpu > 80 OR memory > 85;
+
+-- =====================================
+-- 5. JOIN QUERY 
+-- =====================================
+
+SELECT 
+    s.id,
+    s.cpu,
+    s.memory,
+    s.disk,
+    s.time,
+    a.message
+FROM server_status s
+LEFT JOIN alerts a 
+ON s.time = a.time;
+
+-- =====================================
+-- 6. UPDATE QUERY
+-- =====================================
+
+UPDATE server_status
+SET cpu = 70, memory = 65
+WHERE id = 1;
+
+-- =====================================
+-- 7. DELETE QUERY
+-- =====================================
+
+DELETE FROM alerts
+WHERE id = 1;
