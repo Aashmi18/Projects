@@ -1,0 +1,122 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+typedef struct Node {
+    int id;
+    char name[50];
+    struct Node* prev;
+    struct Node* next;
+} Node;
+
+Node* head = NULL;
+
+Node* createNode(int id, char name[]) {
+    Node* newNode = (Node*)malloc(sizeof(Node));
+    newNode->id = id;
+    strcpy(newNode->name, name);
+    newNode->prev = newNode->next = NULL;
+    return newNode;
+}
+
+void enrollStudent(int id, char name[]) {
+    Node* newNode = createNode(id, name);
+    if (head == NULL) {
+        head = newNode;
+    } else {
+        Node* temp = head;
+        while (temp->next != NULL)
+            temp = temp->next;
+        temp->next = newNode;
+        newNode->prev = temp;
+    }
+    printf("Student enrolled successfully.\n");
+}
+
+void displayEnrollments() {
+    Node* temp = head;
+    if (temp == NULL) {
+        printf("No enrollments found.\n");
+        return;
+    }
+    printf("Enrollment List:\n");
+    while (temp != NULL) {
+        printf("ID: %d, Name: %s\n", temp->id, temp->name);
+        temp = temp->next;
+    }
+}
+
+void searchStudent(int id) {
+    Node* temp = head;
+    while (temp != NULL) {
+        if (temp->id == id) {
+            printf("Student found: ID = %d, Name = %s\n", temp->id, temp->name);
+            return;
+        }
+        temp = temp->next;
+    }
+    printf("Student with ID %d not found.\n", id);
+}
+
+void deleteStudent(int id) {
+    Node* temp = head;
+    while (temp != NULL) {
+        if (temp->id == id) {
+            if (temp->prev != NULL)
+                temp->prev->next = temp->next;
+            else
+                head = temp->next;
+
+            if (temp->next != NULL)
+                temp->next->prev = temp->prev;
+
+            free(temp);
+            printf("Student with ID %d deleted.\n", id);
+            return;
+        }
+        temp = temp->next;
+    }
+    printf("Student with ID %d not found.\n", id);
+}
+
+int main() {
+    int choice, id;
+    char name[50];
+
+    while (1) {
+        printf("\nCourse Enrollment System\n");
+        printf("1. Enroll Student\n2. Search Student\n3. Delete Student\n4. Display All\n5. Exit\n");
+        printf("Enter your choice: ");
+        scanf("%d", &choice);
+
+        switch (choice) {
+            case 1:
+                printf("Enter ID: ");
+                scanf("%d", &id);
+                printf("Enter Name: ");
+                scanf(" %[^\n]", name);  // To read string with spaces
+                enrollStudent(id, name);
+                break;
+            case 2:
+                printf("Enter ID to search: ");
+                scanf("%d", &id);
+                searchStudent(id);
+                break;
+            case 3:
+                printf("Enter ID to delete: ");
+                scanf("%d", &id);
+                deleteStudent(id);
+                break;
+            case 4:
+                displayEnrollments();
+                break;
+            case 5:
+                printf("Exiting system.\n");
+                exit(0);
+            default:
+                printf("Invalid choice.\n");
+        }
+    }
+
+    return 0;
+}
